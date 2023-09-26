@@ -130,10 +130,10 @@ def get_cart_count(request):
     return cart_count
     
 
-def add_to_cart(request, item_id):
-    user_id = request.COOKIES.get("user_id")
+def add_to_cart(request, item_id, size):
+    user_id = request.COOKIES["user_id"]
     item = models.Product.objects.get(product_id=item_id)
-    if models.UserItem.objects.filter(item_id=item_id).filter(user=user_id):
+    if models.UserItem.objects.filter(item_id=item_id, user=user_id, sizes=size):
         newquant = models.UserItem.objects.filter(item_id=item_id).get(user=user_id).quantity + 1
         models.UserItem.objects.filter(item_id=item_id).filter(user=user_id).update(quantity=newquant)
         return
@@ -145,7 +145,7 @@ def add_to_cart(request, item_id):
             price=item.price,
             image=item.image,
             item_id=item_id,
-            sizes=item.sizes,
+            sizes=size,
             colors=get_color(item.colors)
         )
         return
@@ -169,10 +169,13 @@ def shop_main(request):
     context["cart_count"] = cart_count
     response = render(request,"base/index.html", context)
     if request.method == "POST":
-        print("adding to cart 1")
         if "add_cart" in request.POST:
-            print("assing to cart 3")
-            add_to_cart(request, request.POST.get("item_id"))
+            name1 = request.POST.get("item_id")
+            for x in l_form(models.Product.objects.get(product_id=name1).sizes):
+                if request.POST.get(x) == "on":
+                    size = x
+                    break
+            add_to_cart(request, request.POST.get("item_id"), size)
             return redirect("shop")
             
     
@@ -187,6 +190,15 @@ def shop_all(request):
         "cart_count": get_cart_count(request)
     }
     response =  render(request, "base/index.html", context)
+    if request.method == "POST":
+        if "add_cart" in request.POST:
+            name1 = request.POST.get("item_id")
+            for x in l_form(models.Product.objects.get(product_id=name1).sizes):
+                if request.POST.get(x) == "on":
+                    size = x
+                    break
+            add_to_cart(request, request.POST.get("item_id"), size)
+            return redirect("shopAll")
     return response
 
 
@@ -197,6 +209,15 @@ def new_arrival(request):
         "items": new_arrivals,
         "cart_count": get_cart_count(request)
     }
+    if request.method == "POST":
+        if "add_cart" in request.POST:
+            name1 = request.POST.get("item_id")
+            for x in l_form(models.Product.objects.get(product_id=name1).sizes):
+                if request.POST.get(x) == "on":
+                    size = x
+                    break
+            add_to_cart(request, request.POST.get("item_id"), size)
+            return redirect("newArrivals")
     
     return render(request, "base/index.html", context)
 
@@ -222,6 +243,43 @@ def cart(request):
         "cart_count": cart_count,
         "total": total
     }
+    if request.method == "POST":
+        size = request.POST.get("item_size")
+        quantity = request.POST.get("quantity")
+        item_id = request.POST.get("user_item_id")
+        quantity = int(quantity)
+
+        if quantity == 0:
+            models.UserItem.objects.filter(user=user_id, item_id=item_id).delete()
+            print("done")
+        else:
+            models.UserItem.objects.filter(user=user_id, sizes=size, item_id=item_id).update(quantity=quantity)
+        
+        response = render(request, "base/cart.html", {})
+        user_id, response = get_user_id(request, response)
+        items = models.UserItem.objects.filter(user=user_id)
+        shipping = 9.99
+        cart_count = 0
+        item_total = 0.0
+        for x in items:
+            item_total += float(x.price)
+            cart_count += int(x.quantity)
+        n_item_total = round(item_total, 2)
+        shipping = shipping * float(cart_count)
+        total = item_total + shipping
+        total = format(total, '.2f')
+        shipping = format(shipping, '.2f')
+        context = {
+            "items": items,
+            "items_total": n_item_total,
+            "shipping": shipping,
+            "cart_count": cart_count,
+            "total": total
+        }
+        return render(request, "base/cart.html", context)
+        
+
+
     return render(request, "base/cart.html", context)
 
 
